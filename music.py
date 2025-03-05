@@ -8,23 +8,18 @@ CSV_FILE = "songData.csv"  # Store scanned data here
 
 # Function to analyze BPM and Key
 def analyze_audio(file_path):
-    try:
-        loader = es.MonoLoader(filename=file_path)
-        audio = loader()
+    loader = es.MonoLoader(filename=file_path)
+    audio = loader()
 
-        # Compute tempo (BPM)
-        rhythm_extractor = es.RhythmExtractor2013()
-        bpm, _, _, _, _ = rhythm_extractor(audio)
+    # Compute tempo (BPM)
+    rhythm_extractor = es.RhythmExtractor2013()
+    bpm, _, _, _, _ = rhythm_extractor(audio)
 
-        # Compute key
-        key_extractor = es.KeyExtractor()
-        key, scale, strength = key_extractor(audio)
+    # Compute key
+    key_extractor = es.KeyExtractor()
+    key, scale, strength = key_extractor(audio)
 
-        return bpm, f"{key} {scale}"
-    
-    except Exception as e:
-        print(f"Error processing {file_path}: {e}")
-        return None, None
+    return bpm, f"{key} {scale}"
 
 # Function to extract metadata (title, artist, genre)
 def get_metadata(file_path):
@@ -63,11 +58,12 @@ def scan_music_folder(folder_path):
                 if file.endswith((".mp3", ".flac", ".wav")):
                     file_path = os.path.join(root, file)
                     
-                    bpm, key = analyze_audio(file_path)
                     title, artist, genre = get_metadata(file_path)
 
                     if title in scanned_files:
                         continue  # Skip duplicate songs
+                    
+                    bpm, key = analyze_audio(file_path)
                     
                     if bpm and key:
                         writer.writerow([index, title, artist, bpm, key, genre])  # Write each result as they come in
