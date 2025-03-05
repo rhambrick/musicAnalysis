@@ -1,22 +1,22 @@
-import essentia.standard as es  # for key and bpm algos
-from mutagen.easyid3 import EasyID3 # for audio metadata
+import essentia.standard as es  # Essentia for key and tempo
+from mutagen.easyid3 import EasyID3  # Mutagen for audio file metadata
 import os
 import csv
-import pandas as pd # for csv work
+import pandas as pd  # Pandas for csv work
 
-CSV_FILE = "songData.csv"  # store scanned data here: index, song, artist, key, bpm, genre (if there)
+CSV_FILE = "songData.csv"  # Store scanned data here
 
-# function to analyze bpm and key
+# Function to analyze BPM and Key
 def analyze_audio(file_path):
     try:
         loader = es.MonoLoader(filename=file_path)
         audio = loader()
 
-        # get tempo
+        # Compute tempo (BPM)
         rhythm_extractor = es.RhythmExtractor2013()
         bpm, _, _, _, _ = rhythm_extractor(audio)
 
-        # get key
+        # Compute key
         key_extractor = es.KeyExtractor()
         key, scale, strength = key_extractor(audio)
 
@@ -26,68 +26,62 @@ def analyze_audio(file_path):
         print(f"Error processing {file_path}: {e}")
         return None, None
 
-# function to extract metadata (artist, genre)
+# Function to extract metadata (title, artist, genre)
 def get_metadata(file_path):
     try:
-        audio = EasyID3(file_path)  # read all metadata
+        audio = EasyID3(file_path)  # Read metadata
+        title = audio.get("title", [os.path.basename(file_path)])[0]  # Default to filename if missing
         artist = audio.get("artist", ["Unknown"])[0]
         genre = audio.get("genre", ["Unknown"])[0]
-        return artist, genre
+        return title, artist, genre
     except Exception:
-        return "Unknown", "Unknown"
+        return os.path.basename(file_path), "Unknown", "Unknown"  # Default values
 
-# load existing CSV data to skip already scanned files for speed
+# Load existing CSV data
 def load_existing_data():
-    if not os.path.exists(CSV_FILE):
-        return set()
-    
-    scanned_files = set()
-    with open(CSV_FILE, "r") as file:
-        reader = csv.reader(file)
-        next(reader, None)  # skip header
-        for row in reader:
-            if row:  
-                scanned_files.add(row[1])  # store song names
-    return scanned_files
+    if os.path.exists(CSV_FILE):
+        df = pd.read_csv(CSV_FILE)
+        return set(df["Song Name"])  # Convert column to set for O(1) lookups
+    return set()
 
-# function to scan folders and store results
+# Function to scan folders and update CSV after each file
 def scan_music_folder(folder_path):
     scanned_files = load_existing_data()
-    new_data = []
-    index = len(scanned_files) + 1
+    file_exists = os.path.exists(CSV_FILE)
 
-    for root, _, files in os.walk(folder_path):
-        for file in files:
-            if file.endswith((".mp3", ".flac", ".wav")) and file not in scanned_files:
-                file_path = os.path.join(root, file)
-                
-                bpm, key = analyze_audio(file_path)
-                artist, genre = get_metadata(file_path)
-                
-                if bpm and key:
-                    new_data.append([index, file, artist, bpm, key, genre])
-                    print(f"✅ Scanned: {file} | BPM: {bpm} | Key: {key}")
-                    index += 1
+    with open(CSV_FILE, "a", newline="") as file:
+        writer = csv.writer(file)
+        
+        # Write header if the CSV is empty
+        if not file_exists or os.stat(CSV_FILE).st_size == 0:
+            writer.writerow(["Index", "Song Name", "Artist", "BPM", "Key", "Genre"])  
 
-    # save new results
-    if new_data:
-        with open(CSV_FILE, "a", newline="") as file:
-            writer = csv.writer(file)
-            if os.stat(CSV_FILE).st_size == 0:
-                writer.writerow(["Index", "Song Name", "Artist", "BPM", "Key", "Genre"])  # write header if empty
-            writer.writerows(new_data)
+        index = len(scanned_files) + 1  # Start indexing at 1
 
-# function to display sorted results
+        for root, _, files in os.walk(folder_path):
+            for file in files:
+                if file.endswith((".mp3", ".flac", ".wav")):
+                    file_path = os.path.join(root, file)
+                    
+                    bpm, key = analyze_audio(file_path)
+                    title, artist, genre = get_metadata(file_path)
+
+                    if title in scanned_files:
+                        continue  # Skip duplicate songs
+                    
+                    if bpm and key:
+                        writer.writerow([index, title, artist, bpm, key, genre])  # Write each result as they come in
+                        print(f"✅ Scanned: {title} | BPM: {bpm} | Key: {key}")
+                        scanned_files.add(title)
+                        index += 1
+
+# Function to display sorted results
 def display_sorted_results():
-    if not os.path.exists(CSV_FILE):
-        print("No songs scanned yet!")
-        return
-
     df = pd.read_csv(CSV_FILE)
-    df = df.sort_values(by="BPM", ascending=True)  # sort by BPM
-    print(df.to_string(index=False))  # print neatly
+    df = df.sort_values(by="BPM", ascending=True)  # Sort by BPM
+    print(df.to_string(index=False))  # Print neatly
 
-# run the program
+# Run the program
 folder_path = input("Enter the top folder path to scan: ")
 scan_music_folder(folder_path)
 print("\n📊 Sorted Results (by BPM):")
