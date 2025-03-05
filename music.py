@@ -32,7 +32,7 @@ def get_metadata(file_path):
     except Exception:
         return os.path.basename(file_path), "Unknown", "Unknown"  # Default values
 
-# Load existing CSV data
+# Load existing CSV data (CSV cannot be just empty, must either have headers or not exist)
 def load_existing_data():
     if os.path.exists(CSV_FILE):
         df = pd.read_csv(CSV_FILE)
@@ -64,7 +64,7 @@ def scan_music_folder(folder_path):
                         continue  # Skip duplicate songs
                     
                     bpm, key = analyze_audio(file_path)
-                    
+
                     if bpm and key:
                         writer.writerow([index, title, artist, bpm, key, genre])  # Write each result as they come in
                         print(f"✅ Scanned: {title} | BPM: {bpm} | Key: {key}")
